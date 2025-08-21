@@ -6,10 +6,21 @@ Configuration file for diffusion model settings
 # Model Configuration
 MODEL_CONFIG = {
     # Current model to use
-    "current_model": "stable-diffusion-3.5-medium",
+    "current_model": "flux-dev",
     
     # Available models
     "models": {
+        "flux-dev": {
+            "model_id": "black-forest-labs/FLUX.1-dev",
+            "pipeline_class": "FluxPipeline",
+            "optimal_steps": 50,
+            "max_steps": 100,
+            "guidance_scale": 3.5,
+            "max_sequence_length": 512,
+            "torch_dtype": "bfloat16",
+            "description": "FLUX.1-dev, high quality with excellent step progression"
+        },
+        
         "flux-schnell": {
             "model_id": "black-forest-labs/FLUX.1-schnell",
             "pipeline_class": "FluxPipeline",
