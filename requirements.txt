@@ -1,0 +1,19 @@
+# Core ML libraries
+torch>=2.0.0
+diffusers>=0.24.0
+transformers>=4.35.0
+accelerate>=0.24.0
+
+# Image processing
+Pillow>=9.0.0
+numpy>=1.21.0
+
+# Utilities
+tqdm>=4.64.0
+click>=8.1.0
+
+# Optional: for better performance (skip on macOS due to build issues)
+# xformers>=0.0.22
+
+# Development
+jupyter>=1.0.0
