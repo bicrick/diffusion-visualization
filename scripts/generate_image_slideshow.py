@@ -4,26 +4,37 @@ Generate a slideshow of diffusion steps showing how an image emerges from noise
 """
 
 import torch
-from diffusers import FluxPipeline
+from diffusers import FluxPipeline, StableDiffusion3Pipeline, DiffusionPipeline
 from pathlib import Path
 import argparse
 import json
 from datetime import datetime
 import re
+from config import get_current_model_config, get_model_config, list_available_models
 
 class DiffusionSlideshow:
-    def __init__(self, num_steps=20):
+    def __init__(self, num_steps=20, model_name=None):
         """Initialize the slideshow generator"""
         self.num_steps = num_steps
         self.step_images = []
         self.step_metadata = []
         
-        print(f"🎬 Loading FLUX.1-schnell for {num_steps}-step slideshow...")
+        # Get model configuration
+        if model_name:
+            self.model_config = get_model_config(model_name)
+        else:
+            self.model_config = get_current_model_config()
         
-        # Load the pipeline
-        self.pipe = FluxPipeline.from_pretrained(
-            "black-forest-labs/FLUX.1-schnell", 
-            torch_dtype=torch.bfloat16
+        print(f"🎬 Loading {self.model_config['model_id']} for {num_steps}-step slideshow...")
+        print(f"📝 {self.model_config['description']}")
+        
+        # Load the appropriate pipeline
+        pipeline_class = globals()[self.model_config['pipeline_class']]
+        torch_dtype = getattr(torch, self.model_config['torch_dtype'])
+        
+        self.pipe = pipeline_class.from_pretrained(
+            self.model_config['model_id'],
+            torch_dtype=torch_dtype
         )
         self.pipe.enable_model_cpu_offload()
         
@@ -75,9 +86,19 @@ class DiffusionSlideshow:
         generator = torch.Generator("cpu").manual_seed(42)
         
         # Generate images with increasing steps to show progression
-        step_counts = [1, 2, 3, 4, 6, 8, 10, 12, 15, 18, 20]
-        if self.num_steps > 20:
-            step_counts.extend(range(25, self.num_steps + 1, 5))
+        # Use model-specific step progression
+        optimal_steps = self.model_config['optimal_steps']
+        max_steps = min(self.num_steps, self.model_config['max_steps'])
+        
+        if max_steps <= 10:
+            step_counts = [1, 2, 3, 4, 6, 8, max_steps]
+        elif max_steps <= 20:
+            step_counts = [1, 2, 3, 4, 6, 8, 10, 12, 15, 18, max_steps]
+        else:
+            step_counts = [1, 2, 3, 4, 6, 8, 10, 12, 15, 18, 20, 25, 30, optimal_steps, max_steps]
+        
+        # Remove duplicates and sort
+        step_counts = sorted(list(set([s for s in step_counts if s <= max_steps])))
         
         for i, steps in enumerate(step_counts):
             if steps > self.num_steps:
@@ -85,16 +106,26 @@ class DiffusionSlideshow:
                 
             print(f"  🎬 Generating step {i + 1}/{len(step_counts)} (using {steps} inference steps)")
             
-            # Generate image with specific number of steps
-            image = self.pipe(
-                prompt,
-                height=1024,
-                width=1024,
-                guidance_scale=3.5,
-                num_inference_steps=steps,
-                max_sequence_length=256,
-                generator=torch.Generator("cpu").manual_seed(42)  # Same seed for consistency
-            ).images[0]
+            # Generate image with specific number of steps using model config
+            generation_kwargs = {
+                "prompt": prompt,
+                "height": 1024,
+                "width": 1024,
+                "guidance_scale": self.model_config['guidance_scale'],
+                "num_inference_steps": steps,
+                "generator": torch.Generator("cpu").manual_seed(42)  # Same seed for consistency
+            }
+            
+            # Add model-specific parameters
+            if 'max_sequence_length' in self.model_config:
+                generation_kwargs['max_sequence_length'] = self.model_config['max_sequence_length']
+            
+            image = self.pipe(**generation_kwargs).images[0]
+            
+            # Save image immediately
+            filename = f"step_{i + 1:03d}.png"
+            image.save(output_path / filename)
+            print(f"    ✅ Saved {filename}")
             
             # Store the image and metadata
             self.step_images.append(image)
@@ -104,26 +135,40 @@ class DiffusionSlideshow:
                 "progress": (i + 1) / len(step_counts),
                 "description": f"Generated with {steps} inference steps"
             })
+            
+            # Save incremental metadata
+            temp_metadata = {
+                "prompt": prompt,
+                "model": "black-forest-labs/FLUX.1-schnell",
+                "total_steps_planned": len(step_counts),
+                "steps_completed": i + 1,
+                "created_at": datetime.now().isoformat(),
+                "steps": self.step_metadata.copy()
+            }
+            
+            with open(output_path / "metadata_progress.json", "w") as f:
+                json.dump(temp_metadata, f, indent=2)
+            
+            print(f"    📊 Progress: {i + 1}/{len(step_counts)} steps completed")
         
-        # Save all step images
-        print(f"💾 Saving {len(self.step_images)} step images...")
-        
-        for i, (image, metadata) in enumerate(zip(self.step_images, self.step_metadata)):
-            filename = f"step_{i + 1:03d}.png"
-            image.save(output_path / filename)
-            print(f"  ✅ Saved {filename}")
+        # Step images already saved iteratively above
+        print(f"💾 All {len(self.step_images)} step images saved during generation")
         
         # Save final high-quality image
         print("🎯 Generating final high-quality image...")
-        final_image = self.pipe(
-            prompt,
-            height=1024,
-            width=1024,
-            guidance_scale=3.5,
-            num_inference_steps=4,  # FLUX.1-schnell's optimal steps
-            max_sequence_length=256,
-            generator=torch.Generator("cpu").manual_seed(42)
-        ).images[0]
+        final_kwargs = {
+            "prompt": prompt,
+            "height": 1024,
+            "width": 1024,
+            "guidance_scale": self.model_config['guidance_scale'],
+            "num_inference_steps": self.model_config['optimal_steps'],
+            "generator": torch.Generator("cpu").manual_seed(42)
+        }
+        
+        if 'max_sequence_length' in self.model_config:
+            final_kwargs['max_sequence_length'] = self.model_config['max_sequence_length']
+        
+        final_image = self.pipe(**final_kwargs).images[0]
         
         final_image.save(output_path / "final.png")
         print("  ✅ Saved final.png")
@@ -131,7 +176,8 @@ class DiffusionSlideshow:
         # Save metadata
         slideshow_metadata = {
             "prompt": prompt,
-            "model": "black-forest-labs/FLUX.1-schnell",
+            "model": self.model_config['model_id'],
+            "model_config": self.model_config,
             "total_steps": len(self.step_images),
             "created_at": datetime.now().isoformat(),
             "steps": self.step_metadata
@@ -332,14 +378,33 @@ class DiffusionSlideshow:
 
 def main():
     parser = argparse.ArgumentParser(description="Generate diffusion step slideshow")
-    parser.add_argument("prompt", help="Text prompt for image generation")
-    parser.add_argument("--steps", type=int, default=20, help="Number of steps to capture")
+    parser.add_argument("prompt", nargs='?', help="Text prompt for image generation")
+    parser.add_argument("--steps", type=int, default=30, help="Number of steps to capture")
     parser.add_argument("--output", default="slideshow_output", help="Output directory")
+    parser.add_argument("--model", choices=list_available_models(), 
+                       help="Model to use (default: from config)")
+    parser.add_argument("--list-models", action="store_true", 
+                       help="List available models and exit")
     
     args = parser.parse_args()
     
+    if args.list_models:
+        from config import MODEL_CONFIG
+        print("🔧 Available Models:")
+        print("=" * 40)
+        for name, config in MODEL_CONFIG["models"].items():
+            print(f"📦 {name}")
+            print(f"   {config['description']}")
+            print(f"   Model: {config['model_id']}")
+            print(f"   Optimal steps: {config['optimal_steps']}")
+            print()
+        return
+    
+    if not args.prompt:
+        parser.error("Prompt is required when not using --list-models")
+    
     # Generate slideshow
-    slideshow = DiffusionSlideshow(num_steps=args.steps)
+    slideshow = DiffusionSlideshow(num_steps=args.steps, model_name=args.model)
     output_path = slideshow.generate_slideshow(args.prompt, args.output)
     
     print(f"\n🎉 Slideshow complete!")
