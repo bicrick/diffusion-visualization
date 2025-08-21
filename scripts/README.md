@@ -9,13 +9,9 @@ This directory contains scripts for generating visualization assets from diffusi
    pip install -r requirements.txt
    ```
 
-2. **Hugging Face Authentication** (for gated models like FLUX.1-dev)
+2. **Hugging Face Authentication** (not required for FLUX.1-schnell, but needed for gated models)
    ```bash
-   huggingface-cli login
-   ```
-   Or set environment variable:
-   ```bash
-   export HF_TOKEN="your_token_here"
+   huggingface-cli login  # Only if using gated models
    ```
 
 ## Usage
@@ -40,7 +36,7 @@ python scripts/generate_assets.py
 
 ```bash
 python scripts/generate_assets.py \
-  --model "black-forest-labs/FLUX.1-dev" \
+  --model "black-forest-labs/FLUX.1-schnell" \
   --output "public/data" \
   --steps 50
 ```
@@ -122,9 +118,9 @@ prompts = [
 
 ## Performance Notes
 
-- **GPU Memory**: FLUX.1-dev requires ~12GB VRAM
+- **GPU Memory**: FLUX.1-schnell requires ~8GB VRAM (less than FLUX.1-dev)
 - **CPU Offloading**: Enabled by default to reduce VRAM usage
-- **Generation Time**: ~30-60 seconds per prompt (50 steps)
+- **Generation Time**: ~10-20 seconds per prompt (FLUX.1-schnell is faster)
 - **Storage**: ~50MB per prompt (50 steps + final image)
 
 ## Troubleshooting
@@ -144,8 +140,8 @@ python scripts/generate_assets.py --steps 25
 
 ### Model Access Issues
 ```bash
-# Make sure you have access to FLUX.1-dev on Hugging Face
-# Check your authentication:
+# FLUX.1-schnell is public, no authentication needed
+# For other gated models, check authentication:
 huggingface-cli whoami
 ```
 

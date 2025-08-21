@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-FLUX.1-dev Asset Generation Script
+FLUX.1-schnell Asset Generation Script
 
 Generates step-by-step diffusion visualization assets for the web application.
 Captures each denoising step, saves images, and exports metadata.
@@ -148,7 +148,7 @@ class ModelCache:
 
 
 class DiffusionAssetGenerator:
-    def __init__(self, model_id: str = "black-forest-labs/FLUX.1-dev", output_dir: str = "public/data", 
+    def __init__(self, model_id: str = "black-forest-labs/FLUX.1-schnell", output_dir: str = "public/data", 
                  cache_dir: str = "models_cache", use_cache: bool = True):
         """
         Initialize the asset generator.
@@ -166,7 +166,7 @@ class DiffusionAssetGenerator:
         self.use_cache = use_cache
         self.cache = ModelCache(cache_dir) if use_cache else None
         
-        print(f"🚀 Initializing FLUX.1-dev model: {model_id}")
+        print(f"🚀 Initializing FLUX.1-schnell model: {model_id}")
         
         # Try to load from cache first
         if self.use_cache and self.cache.is_model_cached(model_id):
@@ -388,8 +388,8 @@ class DiffusionAssetGenerator:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate FLUX.1-dev visualization assets")
-    parser.add_argument("--model", default="black-forest-labs/FLUX.1-dev", 
+    parser = argparse.ArgumentParser(description="Generate FLUX.1-schnell visualization assets")
+    parser.add_argument("--model", default="black-forest-labs/FLUX.1-schnell", 
                        help="Hugging Face model ID")
     parser.add_argument("--output", default="public/data", 
                        help="Output directory for assets")
