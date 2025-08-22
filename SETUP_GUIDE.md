@@ -1,4 +1,4 @@
-# Quick Setup Guide
+cler# Quick Setup Guide
 
 This guide will get you running with FLUX.1-schnell asset generation quickly.
 
